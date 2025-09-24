@@ -57,6 +57,18 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        earning: {
+          DEFAULT: "hsl(var(--earning))",
+          foreground: "hsl(var(--earning-foreground))",
+        },
+        reward: {
+          DEFAULT: "hsl(var(--reward))",
+          foreground: "hsl(var(--reward-foreground))",
+        },
+        premium: {
+          DEFAULT: "hsl(var(--premium))",
+          foreground: "hsl(var(--premium-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
