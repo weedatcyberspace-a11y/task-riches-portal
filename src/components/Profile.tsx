@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { storage } from '@/lib/storage';
+import { toast } from '@/hooks/use-toast';
 import { 
   User, 
   Mail, 
@@ -13,7 +17,8 @@ import {
   Target, 
   TrendingUp,
   ArrowLeft,
-  MessageCircle
+  CreditCard,
+  Loader2
 } from 'lucide-react';
 import { UserAnswer } from '@/types/user';
 
@@ -23,6 +28,14 @@ interface ProfileProps {
 
 const Profile: React.FC<ProfileProps> = ({ onBack }) => {
   const { user } = useAuth();
+  const [showActivationForm, setShowActivationForm] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [activationData, setActivationData] = useState({
+    firstName: '',
+    lastName: '',
+    phoneNumber: '',
+    amount: 100 // Default activation fee
+  });
 
   if (!user) return null;
 
@@ -36,11 +49,51 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
       .slice(0, 10);
   };
 
-  const handleWithdraw = () => {
-    if (user && user.balance > 0) {
-      const message = `Hello! I would like to withdraw $${user.balance.toFixed(2)} from my TaskEarner account. Username: ${user.username}, Email: ${user.email}`;
-      const whatsappUrl = `https://wa.me/254114470612?text=${encodeURIComponent(message)}`;
-      window.open(whatsappUrl, '_blank');
+  const handleActivation = async () => {
+    if (!activationData.firstName || !activationData.lastName || !user.email) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      const response = await fetch(`https://zdumgjdrhptzmphcctyo.supabase.co/functions/v1/pesapal-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'user-id': user.id
+        },
+        body: JSON.stringify({
+          amount: activationData.amount,
+          email: user.email,
+          firstName: activationData.firstName,
+          lastName: activationData.lastName,
+          phoneNumber: activationData.phoneNumber
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.redirect_url) {
+        // Redirect to PesaPal payment page
+        window.location.href = data.redirect_url;
+      } else {
+        throw new Error(data.error || 'Payment processing failed');
+      }
+    } catch (error) {
+      console.error('Activation payment error:', error);
+      toast({
+        title: "Payment Failed",
+        description: "Failed to process activation payment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -127,14 +180,95 @@ const Profile: React.FC<ProfileProps> = ({ onBack }) => {
                 </div>
               </div>
               
-              <Button 
-                onClick={handleWithdraw}
-                disabled={user.balance <= 0}
-                className="w-full bg-reward hover:bg-reward/90 text-reward-foreground"
-              >
-                <MessageCircle className="w-4 h-4 mr-2" />
-                Withdraw Balance
-              </Button>
+              <div className="space-y-4">
+                {user.balance === 0 ? (
+                  <Dialog open={showActivationForm} onOpenChange={setShowActivationForm}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        className="w-full bg-premium hover:bg-premium/90 text-premium-foreground"
+                        size="lg"
+                      >
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Pay Activation Fee - KES {activationData.amount}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                      <DialogHeader>
+                        <DialogTitle>Account Activation</DialogTitle>
+                        <DialogDescription>
+                          Pay the activation fee of KES {activationData.amount} to start earning from tasks.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="firstName">First Name *</Label>
+                          <Input
+                            id="firstName"
+                            value={activationData.firstName}
+                            onChange={(e) => setActivationData(prev => ({ ...prev, firstName: e.target.value }))}
+                            placeholder="Enter your first name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="lastName">Last Name *</Label>
+                          <Input
+                            id="lastName"
+                            value={activationData.lastName}
+                            onChange={(e) => setActivationData(prev => ({ ...prev, lastName: e.target.value }))}
+                            placeholder="Enter your last name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="phoneNumber">Phone Number</Label>
+                          <Input
+                            id="phoneNumber"
+                            value={activationData.phoneNumber}
+                            onChange={(e) => setActivationData(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                            placeholder="e.g., 0700000000"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="amount">Activation Fee (KES)</Label>
+                          <Input
+                            id="amount"
+                            type="number"
+                            value={activationData.amount}
+                            onChange={(e) => setActivationData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 100 }))}
+                            min="50"
+                            max="500"
+                          />
+                        </div>
+                      </div>
+                      <Button 
+                        onClick={handleActivation}
+                        disabled={isProcessing}
+                        className="w-full bg-premium hover:bg-premium/90 text-premium-foreground"
+                      >
+                        {isProcessing ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Pay KES {activationData.amount}
+                          </>
+                        )}
+                      </Button>
+                    </DialogContent>
+                  </Dialog>
+                ) : (
+                  <div className="text-center space-y-2">
+                    <Badge className="bg-earning/20 text-earning text-lg px-4 py-2">
+                      ✅ Account Activated
+                    </Badge>
+                    <p className="text-sm text-muted-foreground">
+                      Your account is active. Continue completing tasks to earn more!
+                    </p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

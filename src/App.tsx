@@ -7,13 +7,27 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Auth from "@/components/Auth";
 import Dashboard from "@/components/Dashboard";
 import Profile from "@/components/Profile";
-import { useState } from "react";
+import ActivationSuccess from "@/pages/ActivationSuccess";
+import { useState, useEffect } from "react";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { user } = useAuth();
   const [showProfile, setShowProfile] = useState(false);
+  const [showActivationSuccess, setShowActivationSuccess] = useState(false);
+
+  // Check for activation success in URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (window.location.pathname === '/activation-success' || urlParams.get('success') === 'true') {
+      setShowActivationSuccess(true);
+    }
+  }, []);
+
+  if (showActivationSuccess) {
+    return <ActivationSuccess />;
+  }
 
   if (!user) {
     return <Auth />;
@@ -35,6 +49,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/" element={<AppContent />} />
+            <Route path="/activation-success" element={<AppContent />} />
             <Route path="*" element={<AppContent />} />
           </Routes>
         </AuthProvider>
